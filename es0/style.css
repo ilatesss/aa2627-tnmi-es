@@ -1,0 +1,26 @@
+body {
+  margin: 0;
+}
+
+canvas {
+  display: block;
+}
+* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		height: 100vh;
+		overflow: hidden;
+		background: #0d1020;
+		font-family: system-ui, sans-serif;
+	}
+	canvas { display: block; cursor: crosshair; }
+	p {
+		position: fixed;
+		bottom: 20px;
+		left: 24px;
+		margin: 0;
+		color: #8fa0c8;
+		font-size: 13px;
+		letter-spacing: .05em;
+		pointer-events: none;
+	}
