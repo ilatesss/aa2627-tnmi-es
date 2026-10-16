@@ -24,3 +24,23 @@ canvas {
 		letter-spacing: .05em;
 		pointer-events: none;
 	}
+
+/* regole di centratura della tela, aggiunte da /aggiorna:
+   se la tela è più grande della finestra parte dall'angolo in alto a sinistra
+   e la pagina scorre, invece di tagliarne i bordi */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: safe center;
+}
+
+canvas {
+  display: block;
+}

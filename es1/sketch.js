@@ -1,12 +1,3 @@
-// Fotografia: https://www.pexels.com/it-it/foto/paesaggio-astratto-surreale-dai-colori-vivaci-39033732/
-// Autore: eugene golevesov
-// Procedimento: la fotografia intera è lo sfondo di un livello; a intervalli
-// regolari alcune porzioni rettangolari vengono estratte con get(), ricolorate
-// con un'operazione casuale sui pixel (inversione, scambio dei canali, soglia,
-// scala, mescola) e ricollocate altrove con image(), spostate di poco, riscalate
-// e fuse al resto con un metodo di fusione casuale. Dopo qualche secondo il
-// livello torna alla fotografia intera e il procedimento riparte.
-
 const nomeFoto = "foto.jpg";
 
 const larghezzaTela = 800;
@@ -15,37 +6,44 @@ const altezzaTela = 600;
 const pausaMin = 1; 
 const pausaMax = 3;
 
-const pezziPassoMin = 3;
-const pezziPassoMax = 8;
-
-const durataCiclo = 1200;
+const pezziPassoMin = 4;
+const pezziPassoMax = 10;
 
 const latoMin = 5;
 const latoMax = 80;
 
 const OPERAZIONI = ["inverti", "scambia", "cicla", "soglia", "scala", "mescola"];
-
-const METODI_FUSIONE = [
-  "BLEND",
-  "MULTIPLY",
-  "SCREEN",
-  "DIFFERENCE",
-  "OVERLAY",
-  "HARD_LIGHT"
-];
+const METODI_FUSIONE = ["BLEND", "MULTIPLY", "SCREEN", "DIFFERENCE", "OVERLAY", "HARD_LIGHT"];
 
 let foto;
 let livello;
+let livelloBase;
 
 let prossimoPasso = 0;
-let inizioCiclo = 0;
-
 let scala = 1;
 let offX = 0;
 let offY = 0;
 
+let statoAzione = "PLAY"; 
+
 async function setup() {
-  createCanvas(larghezzaTela, altezzaTela);
+  let tela = createCanvas(larghezzaTela, altezzaTela);
+  tela.parent('sketch-container');
+
+  document.getElementById('btn-indietro').addEventListener('click', () => {
+    statoAzione = "INDIETRO";
+    document.getElementById('btn-play').innerText = '▶';
+  });
+
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if (statoAzione === "PLAY" || statoAzione === "INDIETRO") {
+      statoAzione = "PAUSA";
+      document.getElementById('btn-play').innerText = '▶';
+    } else {
+      statoAzione = "PLAY";
+      document.getElementById('btn-play').innerText = '⏸';
+    }
+  });
 
   try {
     foto = await loadImage(nomeFoto);
@@ -58,17 +56,14 @@ async function setup() {
   offX = (foto.width * scala - larghezzaTela) / 2;
   offY = (foto.height * scala - altezzaTela) / 2;
 
+  livelloBase = createGraphics(larghezzaTela, altezzaTela);
+  livelloBase.image(foto, -offX, -offY, foto.width * scala, foto.height * scala);
+
   livello = createGraphics(larghezzaTela, altezzaTela);
   livello.noSmooth(); 
-  riparti();
-}
 
-function riparti() {
-  livello.clear();
-  livello.blendMode(BLEND); 
-  livello.image(foto, -offX, -offY, foto.width * scala, foto.height * scala);
-  inizioCiclo = frameCount;
-  prossimoPasso = frameCount + floor(random(pausaMin, pausaMax + 1));
+  livello.image(livelloBase, 0, 0);
+  prossimoPasso = frameCount;
 }
 
 function avviso() {
@@ -79,7 +74,7 @@ function avviso() {
   textAlign(CENTER, CENTER);
   textSize(16);
   text(
-    "Non riesco a caricare " + nomeFoto + ".\nApri la pagina con Live Server (pulsante Go Live).",
+    "Non riesco a caricare " + nomeFoto + ".\nApri la pagina con Live Server.",
     width / 2,
     height / 2
   );
@@ -138,22 +133,33 @@ function ricolora(img) {
 }
 
 function spostaPezzo() {
+  let yOrigine = random(altezzaTela);
+  
+  if (random(1) < 0.3) {
+    yOrigine = random(altezzaTela * 0.4);
+  }
+
+  const moltiplicatore = map(yOrigine, 0, altezzaTela, 0.8, 2.5);
+
   let w, h;
   const tipoPezzo = random(1);
   
   if (tipoPezzo < 0.33) {
-    w = floor(random(latoMin * 2, latoMax * 2));
-    h = floor(random(latoMin, latoMin * 3));
+    w = floor(random(latoMin * 2, latoMax * 2) * moltiplicatore);
+    h = floor(random(latoMin, latoMin * 3) * moltiplicatore);
   } else if (tipoPezzo < 0.66) {
-    w = floor(random(latoMin, latoMin * 3));
-    h = floor(random(latoMin * 2, latoMax * 2));
+    w = floor(random(latoMin, latoMin * 3) * moltiplicatore);
+    h = floor(random(latoMin * 2, latoMax * 2) * moltiplicatore);
   } else {
-    w = floor(random(latoMin, latoMax));
-    h = floor(random(latoMin, latoMax));
+    w = floor(random(latoMin, latoMax) * moltiplicatore);
+    h = floor(random(latoMin, latoMax) * moltiplicatore);
   }
 
+  w = constrain(w, 1, larghezzaTela);
+  h = constrain(h, 1, altezzaTela);
+
   const daX = floor(random(larghezzaTela - w));
-  const daY = floor(random(altezzaTela - h));
+  const daY = floor(constrain(yOrigine, 0, altezzaTela - h));
 
   const pezzo = livello.get(daX, daY, w, h);
 
@@ -163,9 +169,9 @@ function spostaPezzo() {
   let aY = daY;
   
   if (random(1) < 0.5) {
-     aX += random(-20, 20); 
+     aX += random(-20 * moltiplicatore, 20 * moltiplicatore); 
   } else {
-     aY += random(-20, 20); 
+     aY += random(-20 * moltiplicatore, 20 * moltiplicatore); 
   }
 
   const metodoScelto = random(METODI_FUSIONE);
@@ -185,22 +191,48 @@ function spostaPezzo() {
   livello.blendMode(BLEND);
 }
 
+function riparaPezzo() {
+  let w = floor(random(latoMin * 2, latoMax * 3));
+  let h = floor(random(latoMin * 2, latoMax * 3));
+  let x = floor(random(larghezzaTela - w));
+  let y = floor(random(altezzaTela - h));
+
+  let pezzoSano = livelloBase.get(x, y, w, h);
+  
+  livello.blendMode(BLEND);
+  livello.image(pezzoSano, x, y);
+}
+
 function draw() {
   if (!foto) return;
 
   background(20); 
 
-  if (frameCount - inizioCiclo > durataCiclo) {
-    riparti();
-  }
-
-  if (frameCount >= prossimoPasso) {
-    const n = floor(random(pezziPassoMin, pezziPassoMax + 1));
-    for (let i = 0; i < n; i++) {
-      spostaPezzo();
+  if (statoAzione === "PLAY") {
+    if (frameCount >= prossimoPasso) {
+      const n = floor(random(pezziPassoMin, pezziPassoMax + 1));
+      for (let i = 0; i < n; i++) {
+        spostaPezzo();
+      }
+      prossimoPasso = frameCount + floor(random(pausaMin, pausaMax + 1));
     }
-    prossimoPasso = frameCount + floor(random(pausaMin, pausaMax + 1));
+  } else if (statoAzione === "INDIETRO") {
+    if (frameCount % 2 === 0) {
+      const n = floor(random(1, 4));
+      for (let i = 0; i < n; i++) {
+        riparaPezzo();
+      }
+    }
   }
 
-  image(livello, 0, 0);
+  push();
+  translate(larghezzaTela / 2, altezzaTela / 2);
+  scale(1.05); 
+  
+  let movX = map(noise(frameCount * 0.005), 0, 1, -15, 15);
+  let movY = map(noise(frameCount * 0.005 + 100), 0, 1, -15, 15);
+  
+  imageMode(CENTER);
+  image(livello, movX, movY);
+  pop();
 }
