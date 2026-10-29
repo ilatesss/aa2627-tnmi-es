@@ -1,3 +1,6 @@
+// Fotografia: https://www.pexels.com/photo/serene-forest-pathway-in-tambre-italy-37576103/
+// Autore: Nicola Toscan
+
 const nomeFoto = "foto.jpg";
 
 const larghezzaTela = 800;
@@ -11,6 +14,11 @@ const pezziPassoMax = 8;
 
 const latoMin = 5;
 const latoMax = 80;
+const fattoreSuperficieLivelloVicinoMin = 1.5;
+const fattoreSuperficieLivelloVicinoMax = 3.0;
+const scalaComposizione = 1.15;
+const fattoriParallasse = [0.45, 0.7, 1.0];
+const probabilitaBucoOriginale = 0.18;
 
 const OPERAZIONI = ["inverti", "scambia", "cicla", "soglia", "scala", "mescola"];
 const METODI_FUSIONE = ["BLEND", "MULTIPLY", "SCREEN", "DIFFERENCE", "OVERLAY", "HARD_LIGHT"];
@@ -31,21 +39,6 @@ let statoAzione = "PLAY";
 async function setup() {
   let tela = createCanvas(larghezzaTela, altezzaTela);
   tela.parent('sketch-container');
-
-  document.getElementById('btn-indietro').addEventListener('click', () => {
-    statoAzione = "INDIETRO";
-    document.getElementById('btn-play').innerText = '▶';
-  });
-
-  document.getElementById('btn-play').addEventListener('click', () => {
-    if (statoAzione === "PLAY" || statoAzione === "INDIETRO") {
-      statoAzione = "PAUSA";
-      document.getElementById('btn-play').innerText = '▶';
-    } else {
-      statoAzione = "PLAY";
-      document.getElementById('btn-play').innerText = '⏸';
-    }
-  });
 
   try {
     foto = await loadImage(nomeFoto);
@@ -71,6 +64,48 @@ async function setup() {
   }
 
   prossimoPasso = frameCount;
+}
+
+function aggiornaControlloMouse() {
+  const dentroCanvas =
+    mouseX >= 0 &&
+    mouseX <= larghezzaTela &&
+    mouseY >= 0 &&
+    mouseY <= altezzaTela;
+
+  if (!dentroCanvas) return;
+
+  const terzaTela = larghezzaTela / 3;
+  const contenitore = document.getElementById('sketch-container');
+
+  if (mouseX < terzaTela) {
+    contenitore.className = "cursor-indietro";
+  } else if (mouseX > terzaTela * 2) {
+    contenitore.className = "cursor-avanti";
+  } else {
+    contenitore.className = "cursor-stop";
+  }
+}
+
+function mousePressed() {
+  if (
+    mouseX < 0 ||
+    mouseX > larghezzaTela ||
+    mouseY < 0 ||
+    mouseY > altezzaTela
+  ) {
+    return;
+  }
+
+  const terzaTela = larghezzaTela / 3;
+
+  if (mouseX < terzaTela) {
+    statoAzione = "INDIETRO";
+  } else if (mouseX > terzaTela * 2) {
+    statoAzione = "PLAY";
+  } else {
+    statoAzione = "PAUSA";
+  }
 }
 
 function avviso() {
@@ -147,7 +182,12 @@ function spostaPezzo() {
   let moltiplicatore = 1;
   if (idx === 0) moltiplicatore = random(0.4, 0.8);
   else if (idx === 1) moltiplicatore = random(0.8, 1.5);
-  else if (idx === 2) moltiplicatore = random(1.5, 3.0);
+  else if (idx === 2) {
+    moltiplicatore = random(
+      fattoreSuperficieLivelloVicinoMin,
+      fattoreSuperficieLivelloVicinoMax
+    );
+  }
 
   let w, h;
   const tipoPezzo = random(1);
@@ -203,9 +243,7 @@ function riparaPezzo() {
   
   livelli[0].imageMode(CORNER);
   livelli[0].blendMode(BLEND);
-  livelli[0].tint(255, 25); 
   livelli[0].image(pezzoSano, x, y);
-  livelli[0].noTint();
 
   for (let i = 1; i < NUM_LIVELLI; i++) {
     livelli[i].rectMode(CORNER);
@@ -219,6 +257,7 @@ function riparaPezzo() {
 function draw() {
   if (!foto) return;
 
+  aggiornaControlloMouse();
   background(20); 
 
   if (statoAzione === "PLAY") {
@@ -226,6 +265,9 @@ function draw() {
       const n = floor(random(pezziPassoMin, pezziPassoMax + 1));
       for (let i = 0; i < n; i++) {
         spostaPezzo();
+      }
+      if (random(1) < probabilitaBucoOriginale) {
+        riparaPezzo();
       }
       prossimoPasso = frameCount + floor(random(pausaMin, pausaMax + 1));
     }
@@ -240,14 +282,18 @@ function draw() {
 
   push();
   translate(larghezzaTela / 2, altezzaTela / 2);
-  scale(1.15); 
+  scale(scalaComposizione);
   
-  let baseMovX = map(noise(frameCount * 0.005), 0, 1, -15, 15);
-  let baseMovY = map(noise(frameCount * 0.005 + 100), 0, 1, -15, 15);
+  const posizioneMouseX = constrain(mouseX, 0, larghezzaTela);
+  const posizioneMouseY = constrain(mouseY, 0, altezzaTela);
   
   imageMode(CENTER);
   for (let i = 0; i < NUM_LIVELLI; i++) {
-    let parallaxFactor = 1 + (i * 0.8); 
+    const margineX = larghezzaTela * (scalaComposizione - 1) / 2;
+    const margineY = altezzaTela * (scalaComposizione - 1) / 2;
+    const movimentoX = map(posizioneMouseX, 0, larghezzaTela, -margineX, margineX);
+    const movimentoY = map(posizioneMouseY, 0, altezzaTela, -margineY, margineY);
+    const fattoreParallasse = fattoriParallasse[i];
     
     if (i > 0) {
       tint(255, 230);
@@ -255,7 +301,11 @@ function draw() {
       noTint();
     }
     
-    image(livelli[i], baseMovX * parallaxFactor, baseMovY * parallaxFactor);
+    image(
+      livelli[i],
+      movimentoX * fattoreParallasse,
+      movimentoY * fattoreParallasse
+    );
   }
   pop();
   noTint();
