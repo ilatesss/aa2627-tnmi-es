@@ -6,8 +6,8 @@ const altezzaTela = 600;
 const pausaMin = 1; 
 const pausaMax = 3;
 
-const pezziPassoMin = 4;
-const pezziPassoMax = 10;
+const pezziPassoMin = 3;
+const pezziPassoMax = 8;
 
 const latoMin = 5;
 const latoMax = 80;
@@ -15,8 +15,10 @@ const latoMax = 80;
 const OPERAZIONI = ["inverti", "scambia", "cicla", "soglia", "scala", "mescola"];
 const METODI_FUSIONE = ["BLEND", "MULTIPLY", "SCREEN", "DIFFERENCE", "OVERLAY", "HARD_LIGHT"];
 
+const NUM_LIVELLI = 3;
+
 let foto;
-let livello;
+let livelli = [];
 let livelloBase;
 
 let prossimoPasso = 0;
@@ -59,10 +61,15 @@ async function setup() {
   livelloBase = createGraphics(larghezzaTela, altezzaTela);
   livelloBase.image(foto, -offX, -offY, foto.width * scala, foto.height * scala);
 
-  livello = createGraphics(larghezzaTela, altezzaTela);
-  livello.noSmooth(); 
+  for (let i = 0; i < NUM_LIVELLI; i++) {
+    let l = createGraphics(larghezzaTela, altezzaTela);
+    l.noSmooth();
+    if (i === 0) {
+      l.image(livelloBase, 0, 0);
+    }
+    livelli.push(l);
+  }
 
-  livello.image(livelloBase, 0, 0);
   prossimoPasso = frameCount;
 }
 
@@ -82,7 +89,6 @@ function avviso() {
 
 function ricolora(img) {
   const op = random(OPERAZIONI);
-
   const fattoreR = random(0.4, 1.6);
   const fattoreG = random(0.4, 1.6);
   const fattoreB = random(0.4, 1.6);
@@ -124,7 +130,6 @@ function ricolora(img) {
       g = lerp(g, media, mescola);
       b = lerp(b, media, mescola);
     }
-
     img.pixels[i] = r;
     img.pixels[i + 1] = g;
     img.pixels[i + 2] = b;
@@ -133,17 +138,19 @@ function ricolora(img) {
 }
 
 function spostaPezzo() {
-  let yOrigine = random(altezzaTela);
-  
-  if (random(1) < 0.3) {
-    yOrigine = random(altezzaTela * 0.4);
-  }
+  let probabilita = random(1);
+  let idx;
+  if (probabilita < 0.5) idx = 0; 
+  else if (probabilita < 0.8) idx = 1;
+  else idx = 2;
 
-  const moltiplicatore = map(yOrigine, 0, altezzaTela, 0.8, 2.5);
+  let moltiplicatore = 1;
+  if (idx === 0) moltiplicatore = random(0.4, 0.8);
+  else if (idx === 1) moltiplicatore = random(0.8, 1.5);
+  else if (idx === 2) moltiplicatore = random(1.5, 3.0);
 
   let w, h;
   const tipoPezzo = random(1);
-  
   if (tipoPezzo < 0.33) {
     w = floor(random(latoMin * 2, latoMax * 2) * moltiplicatore);
     h = floor(random(latoMin, latoMin * 3) * moltiplicatore);
@@ -159,36 +166,31 @@ function spostaPezzo() {
   h = constrain(h, 1, altezzaTela);
 
   const daX = floor(random(larghezzaTela - w));
-  const daY = floor(constrain(yOrigine, 0, altezzaTela - h));
+  const daY = floor(random(altezzaTela - h));
 
-  const pezzo = livello.get(daX, daY, w, h);
-
+  const pezzo = livelli[0].get(daX, daY, w, h);
   ricolora(pezzo);
 
   let aX = daX;
   let aY = daY;
-  
   if (random(1) < 0.5) {
-     aX += random(-20 * moltiplicatore, 20 * moltiplicatore); 
+     aX += random(-20, 20) * moltiplicatore; 
   } else {
-     aY += random(-20 * moltiplicatore, 20 * moltiplicatore); 
+     aY += random(-20, 20) * moltiplicatore; 
   }
 
+  let l = livelli[idx];
   const metodoScelto = random(METODI_FUSIONE);
-  livello.blendMode(window[metodoScelto]);
+  l.blendMode(window[metodoScelto]);
 
-  livello.push();
-  livello.translate(aX + w / 2, aY + h / 2); 
+  l.push();
+  l.translate(aX + w / 2, aY + h / 2); 
+  l.scale(random(0.9, 1.5), random(0.9, 1.5));
+  l.imageMode(CENTER);
+  l.image(pezzo, 0, 0);
+  l.pop();
   
-  let scaleX = random(0.9, 1.5);
-  let scaleY = random(0.9, 1.5);
-  livello.scale(scaleX, scaleY);
-  
-  livello.imageMode(CENTER);
-  livello.image(pezzo, 0, 0);
-  livello.pop();
-  
-  livello.blendMode(BLEND);
+  l.blendMode(BLEND);
 }
 
 function riparaPezzo() {
@@ -199,8 +201,19 @@ function riparaPezzo() {
 
   let pezzoSano = livelloBase.get(x, y, w, h);
   
-  livello.blendMode(BLEND);
-  livello.image(pezzoSano, x, y);
+  livelli[0].imageMode(CORNER);
+  livelli[0].blendMode(BLEND);
+  livelli[0].tint(255, 25); 
+  livelli[0].image(pezzoSano, x, y);
+  livelli[0].noTint();
+
+  for (let i = 1; i < NUM_LIVELLI; i++) {
+    livelli[i].rectMode(CORNER);
+    livelli[i].erase(255); 
+    livelli[i].noStroke();
+    livelli[i].rect(x, y, w, h);
+    livelli[i].noErase();
+  }
 }
 
 function draw() {
@@ -217,7 +230,7 @@ function draw() {
       prossimoPasso = frameCount + floor(random(pausaMin, pausaMax + 1));
     }
   } else if (statoAzione === "INDIETRO") {
-    if (frameCount % 2 === 0) {
+    if (frameCount % 4 === 0) {
       const n = floor(random(1, 4));
       for (let i = 0; i < n; i++) {
         riparaPezzo();
@@ -227,12 +240,23 @@ function draw() {
 
   push();
   translate(larghezzaTela / 2, altezzaTela / 2);
-  scale(1.05); 
+  scale(1.15); 
   
-  let movX = map(noise(frameCount * 0.005), 0, 1, -15, 15);
-  let movY = map(noise(frameCount * 0.005 + 100), 0, 1, -15, 15);
+  let baseMovX = map(noise(frameCount * 0.005), 0, 1, -15, 15);
+  let baseMovY = map(noise(frameCount * 0.005 + 100), 0, 1, -15, 15);
   
   imageMode(CENTER);
-  image(livello, movX, movY);
+  for (let i = 0; i < NUM_LIVELLI; i++) {
+    let parallaxFactor = 1 + (i * 0.8); 
+    
+    if (i > 0) {
+      tint(255, 230);
+    } else {
+      noTint();
+    }
+    
+    image(livelli[i], baseMovX * parallaxFactor, baseMovY * parallaxFactor);
+  }
   pop();
+  noTint();
 }
